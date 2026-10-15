@@ -1,7 +1,6 @@
 """End-to-end clean-start smoke test script following README instructions."""
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -10,8 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app
 from app.extensions import db
-from app.models.audit import AuditLog
-from app.models.incident import Incident, IncidentStatus
 from app.models.policy import Policy
 from app.models.user import User
 
@@ -45,7 +42,6 @@ def run_smoke_test():
 
         # Step 2: Seed default roles, policies, and users
         print("\n[Step 2] Seeding initial data...")
-        from scripts.seed_data import seed
 
         # Seed data in this app context
         users_config = [
@@ -112,7 +108,9 @@ def run_smoke_test():
     assert scan_data["policy_evaluation"]["action"] == "BLOCK"
     assert scan_data["incident_created"] is True
     incident_id = scan_data["incident_id"]
-    print(f"✓ Scan completed: {scan_data['findings_count']} findings, Action: {scan_data['policy_evaluation']['action']}")
+    print(
+        f"✓ Scan completed: {scan_data['findings_count']} findings, Action: {scan_data['policy_evaluation']['action']}"
+    )
     print(f"✓ Incident #{incident_id} created.")
 
     # Step 6: Verify Redaction and Incident Detail
@@ -166,12 +164,104 @@ def run_smoke_test():
     actions_recorded = [a["action"] for a in audit_data["items"]]
     print(f"✓ Audit events verified ({audit_data['total']} total recorded): {set(actions_recorded)}")
 
+    # Step 10: Endpoint Device Enrollment
+    print("\n[Step 10] Enrolling Endpoint Device (POST /api/v1/endpoints/enroll)...")
+    enroll_resp = client.post(
+        "/api/v1/endpoints/enroll",
+        data=json.dumps({
+            "hostname": "workstation-smoke",
+            "os_name": "Linux",
+            "os_version": "Ubuntu 24.04 LTS",
+            "agent_version": "0.1.0",
+        }),
+        headers={"Content-Type": "application/json"},
+    )
+    assert enroll_resp.status_code == 201
+    enroll_data = enroll_resp.get_json()
+    device_id = enroll_data["device_id"]
+    agent_token = enroll_data["agent_token"]
+    print(f"✓ Endpoint enrolled: Device ID {device_id}, Status: {enroll_data['status']}")
+
+    # Step 11: Endpoint Agent Heartbeat
+    print("\n[Step 11] Sending Agent Heartbeat (POST /api/v1/endpoints/heartbeat)...")
+    hb_headers = {
+        "Content-Type": "application/json",
+        "X-Device-ID": device_id,
+        "X-Device-Token": agent_token,
+    }
+    hb_resp = client.post(
+        "/api/v1/endpoints/heartbeat",
+        data=json.dumps({"device_id": device_id, "agent_version": "0.1.0", "queue_depth": 0, "status": "OK"}),
+        headers=hb_headers,
+    )
+    assert hb_resp.status_code == 200
+    hb_data = hb_resp.get_json()
+    assert hb_data["status"] == "ACKNOWLEDGED"
+    print(f"✓ Heartbeat acknowledged: Device Status: {hb_data['device_status']}, Policy Version: {hb_data['policy_version']}")
+
+    # Step 12: Endpoint Event Ingestion (Pipeline: Detection -> Classification -> Policy -> Risk -> Decision)
+    print("\n[Step 12] Ingesting Removable Media Exfiltration Event (POST /api/v1/endpoints/events)...")
+    event_payload = {
+        "event_id": "evt-smoke-usb-001",
+        "schema_version": "1.0.0",
+        "device_id": device_id,
+        "channel": "removable_media",
+        "operation": "file_transferred",
+        "file_name": "client_cards.csv",
+        "destination_type": "external_usb",
+        "destination_path": "/media/usb_drive",
+        "content_sample": "Client Name: Alice, Card: 4532-0150-1234-5671, Exp: 12/28",
+    }
+    evt_resp = client.post(
+        "/api/v1/endpoints/events",
+        data=json.dumps(event_payload),
+        headers=hb_headers,
+    )
+    assert evt_resp.status_code == 201
+    evt_data = evt_resp.get_json()
+    assert evt_data["status"] == "PROCESSED"
+    assert evt_data["classification"] == "RESTRICTED"
+    assert evt_data["decision"] == "BLOCK"
+    assert evt_data["enforcement_status"] == "NOT_ENFORCED"
+    assert evt_data["risk_level"] in ("HIGH", "CRITICAL")
+    assert evt_data["incident_id"] is not None
+    print(f"✓ Event processed: Decision: {evt_data['decision']}, Classification: {evt_data['classification']}, Risk: {evt_data['risk_level']} ({evt_data['risk_score']}/100)")
+    print(f"  Incident #{evt_data['incident_id']} automatically created and linked.")
+
+    # Step 13: Endpoint Inventory & Detail Verification
+    print("\n[Step 13] Querying Endpoint Inventory & Detail API...")
+    inv_resp = client.get("/api/v1/endpoints", headers={"X-API-Key": "analyst_key_smoke"})
+    assert inv_resp.status_code == 200
+    devices = inv_resp.get_json()
+    assert any(d["device_id"] == device_id for d in devices)
+
+    detail_resp = client.get(f"/api/v1/endpoints/{device_id}", headers={"X-API-Key": "analyst_key_smoke"})
+    assert detail_resp.status_code == 200
+    detail_data = detail_resp.get_json()
+    assert len(detail_data["recent_events"]) >= 1
+    print(f"✓ Endpoint inventory and event history verified for device {device_id}.")
+
+    # Step 14: Endpoint Revocation & Access Enforcement
+    print("\n[Step 14] Testing Endpoint Revocation Enforcement...")
+    revoke_resp = client.post(f"/api/v1/endpoints/{device_id}/revoke", headers={"X-API-Key": "admin_key_smoke"})
+    assert revoke_resp.status_code == 200
+    assert revoke_resp.get_json()["status"] == "REVOKED"
+
+    # Revoked agent attempt to submit event is rejected with 403
+    rejected_resp = client.post(
+        "/api/v1/endpoints/events",
+        data=json.dumps({"event_id": "evt-smoke-rejected", "device_id": device_id, "channel": "file", "operation": "created"}),
+        headers=hb_headers,
+    )
+    assert rejected_resp.status_code == 403
+    print("✓ Revoked endpoint properly blocked from event ingestion (HTTP 403).")
+
     # Clean up test database
     if test_db.exists():
         test_db.unlink()
 
     print("\n==================================================")
-    print("ALL SMOKE TEST WORKFLOWS COMPLETED SUCCESSFULLY!")
+    print("ALL 14 SMOKE TEST WORKFLOWS COMPLETED SUCCESSFULLY!")
     print("==================================================")
 
 

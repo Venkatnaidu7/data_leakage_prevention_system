@@ -1,6 +1,7 @@
 """Models package initialization."""
 
 from app.models.audit import AuditLog
+from app.models.endpoint import DeviceStatus, EndpointDevice, EndpointEvent
 from app.models.incident import Incident, IncidentFinding, IncidentStatus
 from app.models.policy import Policy, PolicyAction, PolicySeverity
 from app.models.scan import ScanRecord
@@ -17,4 +18,7 @@ __all__ = [
     "IncidentStatus",
     "ScanRecord",
     "AuditLog",
+    "EndpointDevice",
+    "DeviceStatus",
+    "EndpointEvent",
 ]

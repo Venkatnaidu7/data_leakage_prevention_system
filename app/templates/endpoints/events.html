@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Endpoint Event Explorer{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.75rem;">Endpoint Event Explorer</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Unified security event telemetry reported by enrolled endpoint agents.
+    </p>
+  </div>
+</div>
+
+<!-- Event Filters -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+  <form method="GET" action="{{ url_for('endpoints.event_explorer') }}" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+    <div style="flex: 1; min-width: 140px;">
+      <label for="channel">Channel:</label>
+      <select name="channel" id="channel">
+        <option value="">All Channels</option>
+        <option value="file" {% if channel_filter == 'file' %}selected{% endif %}>File System</option>
+        <option value="removable_media" {% if channel_filter == 'removable_media' %}selected{% endif %}>Removable Media (USB)</option>
+        <option value="clipboard" {% if channel_filter == 'clipboard' %}selected{% endif %}>Clipboard</option>
+      </select>
+    </div>
+
+    <div style="flex: 1; min-width: 140px;">
+      <label for="classification">Classification:</label>
+      <select name="classification" id="classification">
+        <option value="">All Tiers</option>
+        <option value="RESTRICTED" {% if classification_filter == 'RESTRICTED' %}selected{% endif %}>Restricted</option>
+        <option value="CONFIDENTIAL" {% if classification_filter == 'CONFIDENTIAL' %}selected{% endif %}>Confidential</option>
+        <option value="INTERNAL" {% if classification_filter == 'INTERNAL' %}selected{% endif %}>Internal</option>
+        <option value="PUBLIC" {% if classification_filter == 'PUBLIC' %}selected{% endif %}>Public</option>
+      </select>
+    </div>
+
+    <div style="flex: 1; min-width: 140px;">
+      <label for="risk">Risk Band:</label>
+      <select name="risk" id="risk">
+        <option value="">All Bands</option>
+        <option value="CRITICAL" {% if risk_filter == 'CRITICAL' %}selected{% endif %}>Critical</option>
+        <option value="HIGH" {% if risk_filter == 'HIGH' %}selected{% endif %}>High</option>
+        <option value="MEDIUM" {% if risk_filter == 'MEDIUM' %}selected{% endif %}>Medium</option>
+        <option value="LOW" {% if risk_filter == 'LOW' %}selected{% endif %}>Low</option>
+      </select>
+    </div>
+
+    <div style="flex: 1; min-width: 140px;">
+      <label for="decision">Decision:</label>
+      <select name="decision" id="decision">
+        <option value="">All Decisions</option>
+        <option value="BLOCK" {% if decision_filter == 'BLOCK' %}selected{% endif %}>BLOCK</option>
+        <option value="ALERT" {% if decision_filter == 'ALERT' %}selected{% endif %}>ALERT</option>
+        <option value="ALLOW" {% if decision_filter == 'ALLOW' %}selected{% endif %}>ALLOW</option>
+      </select>
+    </div>
+
+    <div>
+      <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.25rem;">Filter</button>
+      <a href="{{ url_for('endpoints.event_explorer') }}" class="btn btn-secondary" style="padding: 0.65rem 1rem;">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- Events Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Timestamp (UTC)</th>
+          <th>Device</th>
+          <th>Channel</th>
+          <th>Operation</th>
+          <th>Target / File</th>
+          <th>Classification</th>
+          <th>Risk</th>
+          <th>Decision</th>
+          <th>Enforcement</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr>
+          <td style="color: var(--text-secondary); font-size: 0.85rem; white-space: nowrap;">
+            {{ ev.timestamp_utc.strftime('%Y-%m-%d %H:%M:%S') }}
+          </td>
+          <td>
+            <strong>{{ ev.device.hostname if ev.device else ev.device_uuid[:10] }}</strong>
+          </td>
+          <td><span class="code-snippet">{{ ev.channel }}</span></td>
+          <td>{{ ev.operation }}</td>
+          <td>{{ ev.file_name or '-' }}</td>
+          <td><span class="code-snippet">{{ ev.classification }}</span></td>
+          <td><span class="badge badge-{{ ev.risk_level.lower() }}">{{ ev.risk_level }} ({{ ev.risk_score }})</span></td>
+          <td><span class="badge badge-{{ ev.decision.lower() }}">{{ ev.decision }}</span></td>
+          <td>
+            <span style="font-size: 0.75rem; color: {% if ev.enforcement_status == 'ENFORCED' %}#34d399{% else %}#94a3b8{% endif %};">
+              {{ ev.enforcement_status }}
+            </span>
+          </td>
+          <td>
+            <a href="{{ url_for('endpoints.event_detail', event_id=ev.event_id) }}" class="btn btn-secondary btn-sm">Inspect</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+            No endpoint security events matching current criteria.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+      Page {{ pagination.page }} of {{ pagination.pages }} (Total: {{ pagination.total }} events)
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if pagination.has_prev %}
+      <a href="{{ url_for('endpoints.event_explorer', page=pagination.prev_num, channel=channel_filter, classification=classification_filter, risk=risk_filter, decision=decision_filter) }}" class="btn btn-secondary btn-sm">&larr; Previous</a>
+      {% endif %}
+      {% if pagination.has_next %}
+      <a href="{{ url_for('endpoints.event_explorer', page=pagination.next_num, channel=channel_filter, classification=classification_filter, risk=risk_filter, decision=decision_filter) }}" class="btn btn-secondary btn-sm">Next &rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

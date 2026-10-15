@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Endpoint Device Inventory{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.75rem;">Endpoint Device Inventory</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Authorized workstations and servers running the visible DLP agent.
+    </p>
+  </div>
+  <div>
+    <span class="badge badge-low" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">
+      Total Enrolled: {{ devices | length }}
+    </span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Hostname</th>
+          <th>Device ID</th>
+          <th>Platform / OS</th>
+          <th>IP Address</th>
+          <th>Agent Version</th>
+          <th>Status</th>
+          <th>Last Seen</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for device in devices %}
+        <tr style="opacity: {% if device.is_active() %}1{% else %}0.55{% endif %};">
+          <td><strong>{{ device.hostname }}</strong></td>
+          <td><span class="code-snippet">{{ device.device_id }}</span></td>
+          <td>{{ device.os_name }} {{ device.os_version or '' }}</td>
+          <td>{{ device.ip_address or '-' }}</td>
+          <td>v{{ device.agent_version }}</td>
+          <td>
+            <span style="font-weight: 700; font-size: 0.8rem; color: {% if device.status == 'ENROLLED' %}#34d399{% elif device.status == 'REVOKED' %}#f87171{% else %}#94a3b8{% endif %};">
+              {{ device.status }}
+            </span>
+          </td>
+          <td style="color: var(--text-secondary); font-size: 0.85rem;">
+            {{ device.last_seen_at.strftime('%Y-%m-%d %H:%M:%S') if device.last_seen_at else '-' }}
+          </td>
+          <td>
+            <div style="display: flex; gap: 0.4rem;">
+              <a href="{{ url_for('endpoints.device_detail', device_id=device.device_id) }}" class="btn btn-secondary btn-sm">Inspect</a>
+              {% if current_user.has_role('admin') %}
+              <form method="POST" action="{{ url_for('endpoints.revoke_device', device_id=device.device_id) }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm {% if device.status == 'ENROLLED' %}btn-danger{% else %}btn-primary{% endif %}"
+                  data-confirm="Are you sure you want to {% if device.status == 'ENROLLED' %}REVOKE{% else %}RESTORE{% endif %} agent credentials for {{ device.hostname }}?">
+                  {{ "Revoke" if device.status == "ENROLLED" else "Restore" }}
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+            No endpoint devices enrolled yet. Run the endpoint agent enrollment workflow to register a device.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

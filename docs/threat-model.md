@@ -29,8 +29,24 @@ This document provides a formal STRIDE threat analysis for the Data Leakage Prev
 - **Risk:** Unredacted payment card numbers, credentials, or personal emails are written to standard error or application logs during detection.
 - **Mitigation:** The `RedactionService` masks matched tokens at the detector layer. Only masked representations (e.g., `************1234` or `a***@example.com`) are passed to the logger, incident repository, and UI.
 
-## 4. Residual Risks & Security Boundaries
+## 4. Endpoint Threat Model & Analysis
+
+With the introduction of the endpoint DLP agent, additional threat vectors emerge at the endpoint and transport boundaries:
+
+| Endpoint Threat Vector | Impact | Mitigations Implemented | Residual Risks & Limits |
+|---|---|---|---|
+| **Compromised Endpoint Credentials** | Adversary extracts `device_id` and `agent_token` from `agent_config.json` to spoof events. | Administrator can immediately revoke the device via the UI or `POST /api/v1/endpoints/<id>/revoke`. Revoked devices are denied event ingestion (HTTP 403). | Local users with root/admin access can read configuration files. Hardware TPM/Secure Enclave credential storage required for high-assurance enterprise deployments. |
+| **Forged, Replayed, or Duplicate Events** | Attacker intercepts or replays prior security events to flood alert systems or create phantom incidents. | Idempotency deduplication using `event_id` and `idempotency_key`. Duplicate submissions return cached decisions without creating duplicate incidents. | If an attacker generates unique IDs for forged telemetry, server evaluates payload normally; however, telemetry is tied to authenticated device ID. |
+| **Local Tampering with Agent Service** | Local user disables agent process, alters `agent_config.json` scopes, or deletes `agent_queue.json`. | Agent emits heartbeats every 30s. Missing heartbeats flag device as inactive in dashboard. Changes to configuration require local user permissions. | Plain user-space agents cannot withstand termination by local OS administrators. Kernel driver or protected service required for tamper-resistance. |
+| **Backend Outage & Offline Toleration** | Network connectivity loss between agent and central DLP server. | Bounded on-disk FIFO queue (`agent_queue.json`) caches events locally with retries and exponential backoff. Queue drops oldest events on overflow (max 500) to protect disk space. | If disconnection exceeds queue capacity, oldest events are dropped. Local queue content is stored in plaintext JSON on disk unless full-disk encryption (BitLocker/LUKS) is active. |
+| **Malicious or Stale Policy Updates** | Endpoint operates on outdated or compromised policies. | Heartbeat sync checks server policy version on each ping. Server serves as the authoritative evaluation engine for central policy enforcement. | During network disconnects, agent relies on cached rules or monitor-only defaults. |
+| **False Positives & False Negatives** | Benign business data flagged as leak, or obfuscated/encrypted sensitive data bypassed. | Multi-tier confidence scoring, Luhn algorithm validation for credit cards, and deterministic four-tier classification (`PUBLIC` to `RESTRICTED`). | High-entropy base64 data, encrypted ZIPs, and non-text files cannot be decrypted without endpoint certificate keys. |
+| **Privacy Risks from File & Clipboard Monitoring** | Agent collects sensitive personal files or clipboard passwords of authorized users. | Strict consent and privacy rules: Clipboard monitoring is **disabled by default**. Keystroke logging is strictly prohibited. Agent minimises data by uploading only metadata, hashes, and short bounded samples; server saves only redacted tokens. | Administrators who enable clipboard monitoring must ensure employee notification and compliance with applicable privacy regulations (GDPR/CCPA). |
+| **Resource Exhaustion & Event Storms** | Rapid file operations (e.g. `git checkout` or automated builds) trigger CPU/disk saturation. | FileObserver debounces events using mtime and file size caching. File reading is capped to 5 MB per file and sample extraction is capped to 100 KB max. | Monitoring system root directories (`/` or `C:\`) without path exclusions will cause high CPU usage. Administrators must configure targeted directory paths. |
+
+## 5. Residual Risks & Security Boundaries
 
 1. **Local Audit Log Tampering:** Database administrators with root database access can alter rows in the audit table. Organizations requiring regulatory-grade non-repudiation must forward audit logs to an external write-once-read-many (WORM) storage or dedicated SIEM.
 2. **Network-level Evasion:** Encrypted archives, steganography, or custom obfuscation cannot be inspected by plain regex/heuristic detectors.
-3. **Enforcement Scope:** This application provides detection, alert generation, and API hooks for enforcement. It does **not** natively intercept kernel network packets or USB devices unless paired with dedicated endpoint agents.
+3. **Enforcement Scope & Honesty:** This prototype provides detection, telemetry, alert generation, and policy evaluation. It does **not** claim to provide kernel-level filesystem write blocking, network packet filtering, or hardware USB lockouts. Where blocking cannot be verified at the OS level, the decision is explicitly reported as `NOT_ENFORCED`.
+

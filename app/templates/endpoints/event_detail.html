@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Event {{ event.event_id[:8] }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <h1 style="font-size: 1.75rem;">Security Event Analysis</h1>
+        <span class="badge badge-{{ event.decision.lower() }}">{{ event.decision }}</span>
+        <span class="badge badge-{{ event.risk_level.lower() }}">{{ event.risk_level }} ({{ event.risk_score }}/100)</span>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">
+        Event ID: <span class="code-snippet">{{ event.event_id }}</span>
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="{{ url_for('endpoints.event_explorer') }}" class="btn btn-secondary btn-sm">&larr; Back to Events</a>
+      {% if event.incident_id %}
+      <a href="{{ url_for('incidents.detail', incident_id=event.incident_id) }}" class="btn btn-primary btn-sm">View Incident #{{ event.incident_id }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Decision & Policy Banner -->
+  <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--accent-blue);">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Enforcement Decision</div>
+        <div style="font-size: 1.25rem; font-weight: 700; color: #fff;">{{ event.decision }}</div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary);">Enforcement: {{ event.enforcement_status }}</div>
+      </div>
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Data Classification</div>
+        <div style="font-size: 1.25rem; font-weight: 700; color: #38bdf8;">{{ event.classification }}</div>
+      </div>
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Matched Policy</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: #fff;">{{ event.policy_name or 'Baseline Default' }}</div>
+      </div>
+    </div>
+    {% if event.decision_reason %}
+    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-secondary);">
+      <strong>Rationale:</strong> {{ event.decision_reason }}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Activity & Target Details -->
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem;">Observed Activity Telemetry</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+      <div><strong>Reporting Device:</strong> {{ event.device.hostname if event.device else event.device_uuid }}</div>
+      <div><strong>Channel:</strong> <span class="code-snippet">{{ event.channel }}</span></div>
+      <div><strong>Operation:</strong> {{ event.operation }}</div>
+      <div><strong>Timestamp (UTC):</strong> {{ event.timestamp_utc.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+      <div><strong>File Name:</strong> {{ event.file_name or '-' }}</div>
+      <div><strong>File Path:</strong> {{ event.file_path or '-' }}</div>
+      <div><strong>Destination:</strong> {{ event.destination_type or '-' }} ({{ event.destination_path or 'Local' }})</div>
+      <div><strong>Content Hash (SHA-256):</strong> <span class="code-snippet" style="font-size: 0.75rem;">{{ event.content_hash or 'N/A' }}</span></div>
+    </div>
+  </div>
+
+  <!-- Redacted Findings -->
+  <div class="card">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Sensitive Findings (Strictly Redacted)</h2>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+      Raw tokens are masked at ingestion to prevent credential and PII leakage.
+    </p>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Line</th>
+            <th>Detector</th>
+            <th>Classification</th>
+            <th>Confidence</th>
+            <th>Redacted Finding</th>
+            <th>Context Window</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for finding in event.detector_findings %}
+          <tr>
+            <td>L{{ finding.get('line_number', 1) }}</td>
+            <td><strong>{{ finding.get('detector_name', '-') }}</strong></td>
+            <td><span class="code-snippet">{{ finding.get('classification', '-') }}</span></td>
+            <td>{{ (finding.get('confidence', 1.0) * 100) | round(1) }}%</td>
+            <td><code style="color: #f87171;">{{ finding.get('redacted_value', '****') }}</code></td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">
+              {{ finding.get('context_snippet', '-') }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+              No sensitive content findings attached to this event.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

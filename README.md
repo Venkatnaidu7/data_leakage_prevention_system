@@ -50,15 +50,19 @@ Modern organizations handle extensive volumes of sensitive information: personal
 | **Credential & Secret Detection** | :white_check_mark: Implemented | Identifies AWS access keys (`AKIA...`), GitHub personal access tokens (`ghp_...`), Slack tokens, private key headers, and high-entropy secret assignments. |
 | **Jurisdiction-Specific IDs** | :white_check_mark: Implemented | Explicitly parameterized national ID detection (e.g., US Social Security Numbers with SSA area, group, and serial validity rules). |
 | **Safe Extraction Pipeline** | :white_check_mark: Implemented | Strict MIME/extension allowlists, 10MB file limit, null-byte rejection, and binary executable magic byte rejection (`ELF`, `MZ`, `Mach-O`, `ZIP`). Uploads are never executed. |
+| **Endpoint Agent & Device Lifecycle** | :white_check_mark: Implemented | Non-invasive user-space agent (Linux/Windows) with enrollment tokens, heartbeat sync, and administrator revocation controls. |
+| **Filesystem & USB Observation** | :white_check_mark: Implemented | Bounded filesystem activity observer (mtime/size debouncing) and removable storage (USB) connection and transfer monitoring. |
+| **Privacy-Safe Clipboard Observer** | :white_check_mark: Implemented | Opt-in clipboard copy observation (**disabled by default**), sampling short snippets and immediately discarding raw strings. |
+| **Four-Tier Data Classification** | :white_check_mark: Implemented | Deterministic mapping from detector findings to `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, or `RESTRICTED` sensitivity tiers. |
+| **Deterministic Risk Scoring** | :white_check_mark: Implemented | Transparent 0–100 quantitative risk score (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) with itemized contributing factor explanations. |
+| **Offline Buffering & Event Resilience**| :white_check_mark: Implemented | Bounded local on-disk FIFO queue (`agent_queue.json`) with retry backoff, ACK pruning, and idempotency deduplication. |
 | **Deterministic Policy Engine** | :white_check_mark: Implemented | Versioned policies with priority-ordered resolution, match thresholds, target detectors, and actions (`LOG`, `WARN`, `BLOCK`, `QUARANTINE`, `ESCALATE`). |
 | **Dry-Run Simulation Sandbox** | :white_check_mark: Implemented | Test sensitive payloads and evaluate policy outcomes in dry-run mode without mutating incidents or generating alerts. |
 | **Incident Management & Triage** | :white_check_mark: Implemented | Full lifecycle tracking (`NEW` -> `INVESTIGATING` -> `RESOLVED` / `FALSE_POSITIVE`), analyst assignment, investigation notes, and strictly redacted evidence viewing. |
 | **Privacy-Aware Redaction** | :white_check_mark: Implemented | Mandatory redaction of all sensitive findings before database storage, application logging, or UI rendering. |
 | **Role-Based Access Control (RBAC)**| :white_check_mark: Implemented | Dedicated roles: `Admin` (full configuration), `Analyst` (scanning and incident triage), and `Auditor` (read-only audit trail and compliance inspection). |
 | **Security Audit Trail** | :white_check_mark: Implemented | Append-only audit log tracking authentication attempts, policy changes, scans, incident updates, and exports. |
-| **Safe Redacted Exports** | :white_check_mark: Implemented | Export incident registries to CSV and JSON formats with all findings masked. |
-| **Hardened REST API (v1)** | :white_check_mark: Implemented | Versioned endpoints (`/api/v1/health`, `/api/v1/scan`, `/api/v1/incidents`, `/api/v1/policies`, `/api/v1/audit`) with Pydantic schema validation. |
-| **Hardened HTTP Headers** | :white_check_mark: Implemented | Content-Security-Policy (CSP), X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy, and Permissions-Policy. |
+| **Hardened REST API (v1)** | :white_check_mark: Implemented | Versioned endpoints for health, scanning, incidents, policies, audit, endpoint enrollment, heartbeats, and event ingestion. |
 
 ---
 
@@ -278,8 +282,39 @@ All state-changing API endpoints accept `X-API-Key` headers or active session co
 | `/api/v1/policies` | `POST` | Admin | Create a new policy rule with threshold and detector targeting. |
 | `/api/v1/policies/simulate` | `POST` | Analyst, Admin | Dry-run simulation test against text payload without saving incidents. |
 | `/api/v1/audit` | `GET` | Auditor, Admin | Query immutable security audit records. |
+| `/api/v1/endpoints/enroll` | `POST` | Public / Endpoint | Enroll endpoint device and issue persistent agent token. |
+| `/api/v1/endpoints/heartbeat` | `POST` | Enrolled Agent | Agent heartbeat health ping and policy version synchronization. |
+| `/api/v1/endpoints/events` | `POST` | Enrolled Agent | Authenticated event ingestion (file, USB, clipboard) with idempotency. |
+| `/api/v1/endpoints` | `GET` | Analyst, Admin, Auditor | List enrolled endpoint inventory and device status. |
+| `/api/v1/endpoints/<id>` | `GET` | Analyst, Admin, Auditor | Retrieve device detail and recent security event timeline. |
+| `/api/v1/endpoints/<id>/revoke` | `POST` | Admin | Revoke endpoint device credentials and deny event ingestion. |
 
 For detailed JSON request/response schemas, consult [docs/api.md](file:///home/robin/Documents/DTS/docs/api.md).
+
+---
+
+## Endpoint Agent CLI Guide
+
+The endpoint DLP agent operates as a visible user-space background service. It is managed via `scripts/run_agent.py`:
+
+```bash
+# 1. Enroll device with central server
+python scripts/run_agent.py enroll --server-url http://localhost:5000
+
+# 2. Check device configuration and server connectivity status
+python scripts/run_agent.py status
+
+# 3. Start background monitoring daemon
+python scripts/run_agent.py run
+
+# 4. (Optional) Run with opt-in clipboard monitoring explicitly enabled
+python scripts/run_agent.py run --enable-clipboard
+
+# 5. Submit synthetic diagnostic test event
+python scripts/run_agent.py test-event --type usb --sensitive
+```
+
+Detailed operator instructions, architecture, and offline buffering details are in [docs/endpoint-agent-guide.md](file:///home/robin/Documents/DTS/docs/endpoint-agent-guide.md).
 
 ---
 
@@ -291,17 +326,27 @@ For detailed JSON request/response schemas, consult [docs/api.md](file:///home/r
 4. **Data Minimization & Redaction:** Sensitive findings are masked immediately at the detector layer. Raw cards, passwords, and tokens are never stored in the database or written to log files.
 5. **Executable Rejection & Path Traversal Prevention:** Upload filenames are normalized with `os.path.basename` and verified against directory traversal patterns (`..`). Binary magic headers (`ELF`, `PE`, `Mach-O`, `ZIP`) are blocked.
 6. **Append-Only Audit Trail:** Administrative operations, policy edits, authentication attempts, and incident updates are recorded with user attribution, timestamp, and client IP address.
+7. **Offline Queue Resilience:** The agent stores pending events in a local bounded FIFO queue (`agent_queue.json`) with retry backoff and ACK pruning, tolerating temporary network outages without data loss.
 
 ---
 
-## Honest Limitations & Scope Boundaries
+## Honest Limitations & Enforcement Truthfulness
 
-Defensive security requires transparent self-assessment. The following are genuine operational boundaries of this platform:
+Defensive security requires transparent self-assessment. The table below explicitly distinguishes what is **detected**, **alerted**, **simulated**, and **actually blocked**:
 
-1. **Inspection Scope:** The platform inspects authorized submitted files and text payloads. It is **not** an OS kernel-level network driver, endpoint EDR agent, or inline SMTP mail transfer agent. It cannot intercept local USB transfers or unrouted network packets unless coupled with dedicated agents via the REST API.
-2. **Encrypted & Complex Binary Formats:** Detection targets structured and unstructured plain-text encodings (`txt`, `csv`, `json`, `log`, `md`, `xml`, `yaml`). Proprietary binary containers, encrypted archives, and images with embedded steganography are intentionally rejected by the safe extractor rather than parsed with unhardened external libraries.
-3. **Regex & Heuristic Limits:** Pattern matching can yield false positives or false negatives against novel obfuscation schemes. High-assurance classification requires pairing pattern heuristics with human analyst triage.
-4. **Audit Immutability at Enterprise Scale:** While the application audit table is append-only at the ORM layer, a privileged database administrator with raw database access could modify rows. High-assurance environments must forward audit events to an external write-once-read-many (WORM) storage or central SIEM.
+| Capability | Category | Reality / Enforcement Boundary |
+|---|---|---|
+| **Payment Cards (Luhn), PII, Secrets, SSN** | **Detected** | High-precision regex and checksum validators run locally on agent and central server. |
+| **High-Risk Channel Transfers (USB / Removable)** | **Alerted** | Automatically generates triage incidents with masked evidence in dashboard. |
+| **Dry-Run Evaluation Sandbox** | **Simulated** | Full pipeline evaluation returning proposed action without saving incidents. |
+| **Invalid/Malicious Server File Uploads** | **Actually Blocked** | Executable binaries (`ELF`, `PE`, `Mach-O`, `ZIP`), path traversal, and >10MB files are rejected with HTTP 400. |
+| **Endpoint File / USB Transfers** | **Not Enforced (Audit Only)** | Because the agent runs strictly in user space without kernel filter drivers, policy decisions of `BLOCK` are honestly reported as `NOT_ENFORCED` at the OS level while recording an auditable security finding. |
+
+### Operational Boundaries:
+1. **Inspection Scope:** Plain text, CSV, JSON, Markdown, XML, and log files are inspected. Encrypted archives (`.zip`, `.7z`), proprietary binary blobs, and images with embedded steganography are rejected or not parsed.
+2. **User-Space Limitations:** The endpoint agent does not install kernel hooks or rootkits. An authorized local administrator can terminate the agent process; missing heartbeats alert central analysts.
+3. **Audit Immutability at Enterprise Scale:** While the application audit table is append-only at the ORM layer, raw database administrator access could alter rows. Enterprise deployments should mirror audit records to WORM storage or a dedicated SIEM.
+
 
 ---
 

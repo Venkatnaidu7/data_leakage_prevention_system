@@ -77,15 +77,59 @@ The Data Leakage Prevention (DLP) system is designed as a modular, defensive cyb
 - **`app/scanning/`**: Safe content and file scanner. Enforces size limits (`MAX_CONTENT_LENGTH`), extension allowlists, UTF-8/safe text decode without running or executing macros or shell binaries.
 - **`app/policies/`**: Deterministic policy evaluation engine. Evaluates findings against priority-ordered rules, handles simulation mode, and outputs actionable decisions (`LOG`, `WARN`, `BLOCK`, `QUARANTINE`, `ESCALATE`).
 - **`app/incidents/`**: Incident triage lifecycle (`NEW`, `INVESTIGATING`, `RESOLVED`, `FALSE_POSITIVE`). Captures severity, detector findings, redacted snippets, and analyst notes.
-- **`app/audit/`**: Security audit log subsystem. Records authentication events, policy alterations, incident state transitions, scans, and export requests.
-- **`app/api/v1/`**: RESTful API providing JSON endpoints for health, scanning, policies, incidents, and audit logs.
-- **`app/dashboard/`**: Server-rendered Jinja analyst interface with CSRF tokens, accessible UI, and metrics summary.
-- **`app/models/`**: SQLAlchemy models with foreign keys, indexes, and parameterized queries.
+- **`agent/`**: Endpoint monitoring agent package. Contains observer implementations (`FileObserver`, `RemovableMediaObserver`, `ClipboardObserver`), on-disk queue (`EventQueue`), authenticated HTTP/HTTPS client (`AgentClient`), and service supervisor (`AgentService`).
+- **`app/detection/classification.py`**: Four-tier data classification engine (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`) resolving findings to the highest sensitivity level.
+- **`app/policies/risk.py`**: Deterministic risk scoring engine (0-100 scale, LOW/MEDIUM/HIGH/CRITICAL bands) providing transparent explanations of risk factors.
+- **`app/api/v1/endpoints_api.py`**: Authenticated REST API for endpoint enrollment, heartbeats, event ingestion, and device inventory.
+- **`app/endpoints/`**: Web UI routes and views for endpoint device inventory, device detail, and security event explorer.
+- **`app/models/endpoint.py`**: Database entities for enrolled endpoints (`EndpointDevice`) and immutable security events (`EndpointEvent`).
+- **`scripts/run_agent.py`**: Cross-platform command-line launcher for endpoint agent lifecycle (`enroll`, `status`, `run`, `test-event`).
 
-## 3. Data Flow & Security Boundaries
+## 3. Three-Tier Architectural Model
 
-1. **Ingestion:** Content arrives via Web UI form or REST API. Size and MIME type are validated prior to reading file streams into memory.
-2. **Analysis:** The scanning pipeline passes extracted plain text across all enabled detectors registered in the `DetectorRegistry`.
-3. **Redaction:** Any sensitive match is masked before incident creation or log generation. Raw secrets are never saved in the database or written to disk.
-4. **Policy Evaluation:** The policy engine checks if findings exceed rule thresholds, calculates the highest-severity action, and logs a detailed rationale.
-5. **Storage & Audit:** Incidents and audit events are recorded transactionally.
+The system organizes into three distinct, cooperating layers:
+
+```
++-------------------------------------------------------------------------+
+|                           1. ENDPOINT LAYER                             |
+|  - Visible, non-invasive user-space agent (Linux / Windows)             |
+|  - Observers: Filesystem, Removable Storage (USB), Opt-in Clipboard     |
+|  - Local durable queue (agent_queue.json) with FIFO bounded storage     |
+|  - Authenticated API client (X-Device-ID / X-Device-Token)              |
++------------------------------------+------------------------------------+
+                                     | (HTTPS / REST v1)
+                                     v
++-------------------------------------------------------------------------+
+|                      2. SECURITY PLATFORM LAYER                         |
+|  - Agent Authentication & Device Revocation Enforcement                 |
+|  - Idempotent Event Ingestion & Deduplication                           |
+|  - Pluggable Detectors (PCI Cards, SSN, Secrets, PII, Custom Regex)    |
+|  - Four-tier Data Classification Engine                                 |
+|  - Deterministic Policy Engine (ALLOW, ALERT, BLOCK, NOT_ENFORCED)       |
+|  - Quantitative 0-100 Risk Engine (LOW, MEDIUM, HIGH, CRITICAL)         |
+|  - Redacted Evidence Vault & Triage Incidents Subsystem                 |
+|  - Immutable, Append-Only Audit Trail                                   |
++------------------------------------+------------------------------------+
+                                     |
+                                     v
++-------------------------------------------------------------------------+
+|                         3. MANAGEMENT LAYER                             |
+|  - Web Management Dashboard (Jinja2, CSP, CSRF, Session Fixation Defense)|
+|  - Endpoint Device Inventory & Health Monitoring                        |
+|  - Event Explorer with Multi-Dimensional Filtering                      |
+|  - Incident Investigation, Triage & Resolution Workflow                 |
+|  - Policy Rule Editor & Dry-Run Simulation Sandbox                      |
+|  - Compliance Audit Log Viewer & Metadata Export                        |
++-------------------------------------------------------------------------+
+```
+
+## 4. End-to-End Event Ingestion Flow
+
+1. **Observation:** Agent observers detect a filesystem modification, USB mount/copy, or clipboard copy.
+2. **Buffering:** The event is queued locally on disk (`agent_queue.json`).
+3. **Transmission:** The agent submits the event to `POST /api/v1/endpoints/events` using device credentials.
+4. **Authentication & Idempotency:** The server validates `X-Device-ID` and token, checks device revocation status, and returns existing decisions for duplicated `event_id` submissions.
+5. **Detection & Classification:** Content is inspected by enabled detectors; findings are classified into `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, or `RESTRICTED`.
+6. **Policy Evaluation & Risk Scoring:** Priority rules determine action (`ALLOW`, `ALERT`, `BLOCK`), and the risk engine computes a 0-100 score with explanatory factors.
+7. **Incident Creation & Audit:** High-risk actions automatically generate triage incidents with masked snippets; the immutable audit log captures the event.
+

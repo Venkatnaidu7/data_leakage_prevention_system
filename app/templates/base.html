@@ -17,6 +17,8 @@
       {% if current_user %}
       <ul class="nav-links">
         <li><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li><a href="{{ url_for('endpoints.device_inventory') }}">Endpoints</a></li>
+        <li><a href="{{ url_for('endpoints.event_explorer') }}">Events</a></li>
         <li><a href="{{ url_for('scanning.upload') }}">File Scanner</a></li>
         <li><a href="{{ url_for('incidents.index') }}">Incidents</a></li>
         <li><a href="{{ url_for('policies.index') }}">Policies</a></li>

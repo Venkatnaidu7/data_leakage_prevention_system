@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Endpoint {{ device.hostname }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <h1 style="font-size: 1.75rem;">{{ device.hostname }}</h1>
+        <span class="badge {% if device.status == 'ENROLLED' %}badge-low{% else %}badge-critical{% endif %}">
+          {{ device.status }}
+        </span>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">
+        Device UUID: <span class="code-snippet">{{ device.device_id }}</span>
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="{{ url_for('endpoints.device_inventory') }}" class="btn btn-secondary btn-sm">&larr; Back to Devices</a>
+      {% if current_user.has_role('admin') %}
+      <form method="POST" action="{{ url_for('endpoints.revoke_device', device_id=device.device_id) }}" style="display: inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm {% if device.status == 'ENROLLED' %}btn-danger{% else %}btn-primary{% endif %}"
+          data-confirm="Are you sure you want to change enrollment state for {{ device.hostname }}?">
+          {{ "Revoke Authorization" if device.status == "ENROLLED" else "Restore Device" }}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Device Properties -->
+  <div class="card" style="margin-bottom: 2rem;">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem;">System &amp; Agent Telemetry</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Operating System</div>
+        <div style="font-weight: 600; color: #fff;">{{ device.os_name }} {{ device.os_version or '' }}</div>
+      </div>
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">IP Address</div>
+        <div style="font-weight: 600; color: #fff;">{{ device.ip_address or 'Unknown' }}</div>
+      </div>
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Agent Version</div>
+        <div style="font-weight: 600; color: #fff;">v{{ device.agent_version }}</div>
+      </div>
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Last Heartbeat (UTC)</div>
+        <div style="font-weight: 600; color: #fff;">{{ device.last_seen_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+      </div>
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Enrolled At (UTC)</div>
+        <div style="font-weight: 600; color: #fff;">{{ device.enrolled_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Device Recent Event Stream -->
+  <div class="card">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Recent Security Events ({{ events | length }})</h2>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+      Activity stream reported by this agent. Findings are strictly masked.
+    </p>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Channel</th>
+            <th>Operation</th>
+            <th>Target / File</th>
+            <th>Classification</th>
+            <th>Risk</th>
+            <th>Decision</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ev in events %}
+          <tr>
+            <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ ev.timestamp_utc.strftime('%H:%M:%S') }}</td>
+            <td><span class="code-snippet">{{ ev.channel }}</span></td>
+            <td>{{ ev.operation }}</td>
+            <td>{{ ev.file_name or '-' }}</td>
+            <td><span class="code-snippet">{{ ev.classification }}</span></td>
+            <td><span class="badge badge-{{ ev.risk_level.lower() }}">{{ ev.risk_level }} ({{ ev.risk_score }})</span></td>
+            <td><span class="badge badge-{{ ev.decision.lower() }}">{{ ev.decision }}</span></td>
+            <td>
+              <a href="{{ url_for('endpoints.event_detail', event_id=ev.event_id) }}" class="btn btn-secondary btn-sm">Inspect</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              No security events recorded from this device yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

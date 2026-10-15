@@ -10,6 +10,7 @@ from app.auth.routes import auth_bp
 from app.auth.services import get_current_user
 from app.config import config_by_name
 from app.dashboard.routes import dashboard_bp
+from app.endpoints.routes import endpoints_bp
 from app.extensions import csrf, db, limiter, migrate
 from app.incidents.routes import incidents_bp
 from app.policies.routes import policies_bp
@@ -43,6 +44,7 @@ def create_app(config_name: str | None = None, test_config: dict | None = None) 
     app.register_blueprint(incidents_bp)
     app.register_blueprint(policies_bp)
     app.register_blueprint(audit_bp)
+    app.register_blueprint(endpoints_bp)
     app.register_blueprint(api_v1_bp)
 
     # Security headers middleware

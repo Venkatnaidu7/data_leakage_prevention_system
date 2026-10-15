@@ -1,6 +1,6 @@
 """Validation schemas for REST API endpoints using Pydantic."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -46,3 +46,47 @@ class SimulateRequestSchema(BaseModel):
     """Schema for dry-run policy simulation."""
 
     content: str = Field(..., min_length=1, max_length=10_000_000)
+
+
+class DeviceEnrollmentSchema(BaseModel):
+    """Schema for endpoint agent enrollment request."""
+
+    hostname: str = Field(..., min_length=1, max_length=128)
+    os_name: str = Field("Windows", max_length=50)
+    os_version: Optional[str] = Field(None, max_length=100)
+    agent_version: str = Field("0.1.0", max_length=30)
+    enrollment_token: Optional[str] = Field(None, max_length=64)
+
+
+class DeviceHeartbeatSchema(BaseModel):
+    """Schema for agent heartbeat status report."""
+
+    device_id: str = Field(..., min_length=1, max_length=64)
+    agent_version: str = Field(..., max_length=30)
+    queue_depth: int = Field(0, ge=0)
+    status: str = Field("OK", max_length=20)
+
+
+class EndpointEventIngestSchema(BaseModel):
+    """Schema for structured endpoint security event ingestion."""
+
+    event_id: str = Field(..., min_length=1, max_length=64)
+    schema_version: Optional[str] = Field("1.0.0", max_length=10)
+    device_id: str = Field(..., min_length=1, max_length=64)
+    timestamp_utc: Optional[str] = Field(None)
+    channel: str = Field(..., pattern="^(file|removable_media|clipboard|network)$")
+    operation: str = Field(
+        ...,
+        pattern="^(created|modified|copied|deleted|device_connected|device_disconnected|clipboard_copy|file_transferred)$",
+    )
+    file_path: Optional[str] = Field(None, max_length=512)
+    file_name: Optional[str] = Field(None, max_length=255)
+    file_type: Optional[str] = Field(None, max_length=30)
+    file_size_bytes: Optional[int] = Field(0, ge=0)
+    content_hash: Optional[str] = Field(None, max_length=64)
+    destination_type: Optional[str] = Field(None, max_length=50)
+    destination_path: Optional[str] = Field(None, max_length=512)
+    device_metadata: Optional[dict[str, Any]] = Field(default_factory=dict)
+    content_sample: Optional[str] = Field(None, max_length=1_000_000)
+    local_findings: Optional[list[dict[str, Any]]] = Field(None)
+    idempotency_key: Optional[str] = Field(None, max_length=64)

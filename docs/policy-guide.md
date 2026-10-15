@@ -65,3 +65,61 @@ Simulation mode allows security analysts and policy authors to test new rule set
    - Threshold: 1
    - Action: `LOG`
    - Severity: `LOW`
+
+---
+
+## 6. Data Classification Engine
+
+The system implements a four-tier classification model resolving detector findings to the highest applicable sensitivity tier:
+
+| Tier | Sensitivity | Trigger Criteria & Detectors | Example Findings |
+|---|---|---|---|
+| **`PUBLIC`** | Lowest (Rank 1) | No sensitive findings detected. | Public documentation, open marketing materials. |
+| **`INTERNAL`** | Low (Rank 2) | Isolated business identifiers or single email addresses. | `analyst@company.com`, internal report headers. |
+| **`CONFIDENTIAL`** | Medium (Rank 3) | PII, personal phone numbers, National IDs (US SSN), or bulk emails (>= 3). | `***-**-3456`, `***-***-0199`, customer lists. |
+| **`RESTRICTED`** | Highest (Rank 4) | High-consequence secrets, payment card numbers (PCI), private keys, auth tokens. | `4532-****-****-5671`, `AKIAIOSFODNN7EXAMPLE`. |
+
+### Deterministic Resolution
+When multiple detectors trigger on a single document or stream, findings deterministically resolve to the highest applicable tier:
+$$\text{Document Classification} = \max_{f \in \text{findings}} \text{Rank}(f)$$
+
+---
+
+## 7. Deterministic Risk Scoring Model
+
+The risk engine computes a transparent, explainable 0–100 numerical score categorized into four risk bands:
+- **`LOW`**: 0.0 – 24.9
+- **`MEDIUM`**: 25.0 – 49.9
+- **`HIGH`**: 50.0 – 74.9
+- **`CRITICAL`**: 75.0 – 100.0
+
+### Scoring Formula & Contributing Factors
+The final score is computed as an additive model clamped between 0 and 100:
+
+1. **Classification Baseline:**
+   - `RESTRICTED`: +50 points
+   - `CONFIDENTIAL`: +35 points
+   - `INTERNAL`: +15 points
+   - `PUBLIC`: +0 points
+2. **Channel & Egress Modifier:**
+   - `removable_media` (USB drive): +25 points
+   - `clipboard`: +15 points
+   - `file` (internal disk): +5 points
+3. **Findings Volume & Confidence:**
+   - Up to +20 points: $\min(\text{count} \times 4.0, 20.0) \times \text{Average Confidence}$
+4. **Policy Severity Amplifier:**
+   - `CRITICAL`: +15 points
+   - `HIGH`: +10 points
+   - `MEDIUM`: +5 points
+
+---
+
+## 8. Enforcement Truthfulness & Action Semantics
+
+In accordance with defensive security engineering principles, this prototype strictly distinguishes policy intent from operating-system enforcement:
+
+- **`ALLOW`**: The policy permits the observed activity without restriction.
+- **`ALERT`**: The policy flagged the activity and generated an incident for security analyst review. No disruption of user activity occurred.
+- **`BLOCK`**: The policy determined that the activity should be prevented.
+- **`NOT_ENFORCED`**: The policy recommended `BLOCK`, but because the agent operates in non-invasive user space without kernel drivers, the operation was permitted at the OS level while recording an auditable security finding.
+
