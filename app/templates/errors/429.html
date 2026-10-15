@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}429 Rate Limit Exceeded{% endblock %}
+{% block content %}
+<div style="max-width: 500px; margin: 4rem auto; text-align: center;">
+  <div class="card">
+    <h1 style="font-size: 3rem; color: #fbbf24; margin-bottom: 0.5rem;">429</h1>
+    <h2 style="font-size: 1.25rem; color: #fff; margin-bottom: 0.75rem;">Too Many Requests</h2>
+    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
+      You have exceeded the permitted request rate for this endpoint. Please wait before submitting additional requests.
+    </p>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">Return to Dashboard</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DLP Platform{% endblock %} - Data Leakage Prevention</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header>
+    <nav class="navbar" aria-label="Main Navigation">
+      <a href="{{ url_for('dashboard.index') }}" class="brand">
+        <span>🛡️ DLP Defender</span>
+        <span class="brand-badge">v{{ app_version }}</span>
+      </a>
+
+      {% if current_user %}
+      <ul class="nav-links">
+        <li><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+        <li><a href="{{ url_for('scanning.upload') }}">File Scanner</a></li>
+        <li><a href="{{ url_for('incidents.index') }}">Incidents</a></li>
+        <li><a href="{{ url_for('policies.index') }}">Policies</a></li>
+        <li><a href="{{ url_for('policies.simulate') }}">Simulation</a></li>
+        {% if current_user.has_role('admin', 'auditor') %}
+        <li><a href="{{ url_for('audit.index') }}">Audit Logs</a></li>
+        {% endif %}
+      </ul>
+
+      <div class="user-status">
+        <span>{{ current_user.username }}</span>
+        <span class="role-tag">{{ current_user.role }}</span>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-sm">Sign Out</a>
+      </div>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" role="alert">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>DLP System &bull; Defensive Security &amp; Data Leakage Prevention Platform &bull; Privacy-Aware Redaction Enabled</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

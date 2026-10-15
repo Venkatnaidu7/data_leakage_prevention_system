@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Incident #{{ incident.id }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <h1 style="font-size: 1.75rem;">Incident #{{ incident.id }}</h1>
+        <span class="badge badge-{{ incident.severity.lower() }}">{{ incident.severity }}</span>
+        <span class="badge badge-{{ incident.action_taken.lower() }}">{{ incident.action_taken }}</span>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">
+        {{ incident.title }}
+      </p>
+    </div>
+    <div>
+      <a href="{{ url_for('incidents.index') }}" class="btn btn-secondary btn-sm">&larr; Back to Incidents</a>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Incident Details & Findings -->
+    <div>
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.75rem;">Incident Context</h2>
+        <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;">
+          <div><strong>Source File:</strong> <span class="code-snippet">{{ incident.source_name }}</span></div>
+          <div><strong>Matched Policy:</strong> {{ incident.matched_policy_name or "None / Default" }}</div>
+          <div><strong>Detection Timestamp:</strong> {{ incident.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</div>
+          {% if incident.description %}
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-primary); border-radius: var(--radius-sm);">
+            <strong>Engine Rationale:</strong> {{ incident.description }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Redacted Evidence Findings -->
+      <div class="card">
+        <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Redacted Evidence Vault</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          To comply with data minimization principles, raw values are masked before display.
+        </p>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Line</th>
+                <th>Detector</th>
+                <th>Classification</th>
+                <th>Redacted Match</th>
+                <th>Context Window</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for finding in incident.findings %}
+              <tr>
+                <td>L{{ finding.line_number }}</td>
+                <td><strong>{{ finding.detector_name }}</strong></td>
+                <td><span class="code-snippet">{{ finding.classification }}</span></td>
+                <td><code style="color: #f87171;">{{ finding.redacted_value }}</code></td>
+                <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">
+                  {{ finding.context_snippet }}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                  No individual finding records attached.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Triage & Resolution Actions -->
+    <div>
+      <div class="card">
+        <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem;">Triage Actions</h2>
+
+        {% if current_user.has_role('admin', 'analyst') %}
+        <form method="POST" action="{{ url_for('incidents.update', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="form-group">
+            <label for="status">Triage Status:</label>
+            <select name="status" id="status">
+              {% for st in statuses %}
+              <option value="{{ st }}" {% if incident.status == st %}selected{% endif %}>{{ st }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="assigned_to_id">Assign Analyst:</label>
+            <select name="assigned_to_id" id="assigned_to_id">
+              <option value="unassigned">-- Unassigned --</option>
+              {% for analyst in analysts %}
+              <option value="{{ analyst.id }}" {% if incident.assigned_to_id == analyst.id %}selected{% endif %}>
+                {{ analyst.username }} ({{ analyst.role }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="resolution_notes">Investigation Notes:</label>
+            <textarea name="resolution_notes" id="resolution_notes" rows="5" placeholder="Record investigation findings, root cause, or false-positive rationale...">{{ incident.resolution_notes or '' }}</textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Save Updates</button>
+        </form>
+        {% else %}
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Read-only view. Auditor accounts cannot update incidents.
+        </div>
+        <div style="margin-top: 1rem;">
+          <div><strong>Current Status:</strong> {{ incident.status }}</div>
+          <div><strong>Assignee:</strong> {{ incident.assigned_to.username if incident.assigned_to else "Unassigned" }}</div>
+          <div style="margin-top: 0.5rem;">
+            <strong>Investigation Notes:</strong>
+            <p style="color: var(--text-secondary); margin-top: 0.25rem;">
+              {{ incident.resolution_notes or "None recorded." }}
+            </p>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}403 Forbidden{% endblock %}
+{% block content %}
+<div style="max-width: 500px; margin: 4rem auto; text-align: center;">
+  <div class="card">
+    <h1 style="font-size: 3rem; color: #f87171; margin-bottom: 0.5rem;">403</h1>
+    <h2 style="font-size: 1.25rem; color: #fff; margin-bottom: 0.75rem;">Access Forbidden</h2>
+    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
+      Your account role does not have authorization to view or execute this resource.
+    </p>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">Return to Dashboard</a>
+  </div>
+</div>
+{% endblock %}

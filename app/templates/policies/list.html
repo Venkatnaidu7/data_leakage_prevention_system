@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Policies{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.75rem;">DLP Policy Rules</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Data-driven, versioned security policies evaluated in strict priority order.
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('policies.simulate') }}" class="btn btn-secondary btn-sm">Simulation Sandbox</a>
+    {% if current_user.has_role('admin') %}
+    <a href="{{ url_for('policies.create') }}" class="btn btn-primary btn-sm">+ New Policy</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Priority</th>
+          <th>Policy Name</th>
+          <th>Action</th>
+          <th>Severity</th>
+          <th>Threshold</th>
+          <th>Target Detectors</th>
+          <th>Status</th>
+          <th>Mode</th>
+          <th>Version</th>
+          {% if current_user.has_role('admin') %}
+          <th>Actions</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for pol in policies %}
+        <tr style="opacity: {% if pol.enabled %}1{% else %}0.5{% endif %};">
+          <td><strong>#{{ pol.priority }}</strong></td>
+          <td>
+            <strong>{{ pol.name }}</strong>
+            {% if pol.description %}
+            <div style="font-size: 0.8rem; color: var(--text-muted);">{{ pol.description }}</div>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-{{ pol.action.lower() }}">{{ pol.action }}</span></td>
+          <td><span class="badge badge-{{ pol.severity.lower() }}">{{ pol.severity }}</span></td>
+          <td>&ge; {{ pol.match_threshold }} finding(s)</td>
+          <td>
+            {% for target in pol.target_detectors %}
+            <span class="code-snippet">{{ target }}</span>
+            {% endfor %}
+          </td>
+          <td>
+            <span style="font-size: 0.8rem; font-weight: 700; color: {% if pol.enabled %}#34d399{% else %}#94a3b8{% endif %};">
+              {{ "ENABLED" if pol.enabled else "DISABLED" }}
+            </span>
+          </td>
+          <td>
+            {% if pol.is_simulation %}
+            <span class="badge" style="background: rgba(147, 51, 234, 0.2); border: 1px solid #9333ea; color: #d8b4fe;">Simulation</span>
+            {% else %}
+            <span style="color: var(--text-muted); font-size: 0.8rem;">Enforce</span>
+            {% endif %}
+          </td>
+          <td>v{{ pol.version }}</td>
+          {% if current_user.has_role('admin') %}
+          <td>
+            <div style="display: flex; gap: 0.4rem;">
+              <a href="{{ url_for('policies.edit', policy_id=pol.id) }}" class="btn btn-secondary btn-sm">Edit</a>
+              <form method="POST" action="{{ url_for('policies.toggle', policy_id=pol.id) }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm {% if pol.enabled %}btn-danger{% else %}btn-primary{% endif %}">
+                  {{ "Disable" if pol.enabled else "Enable" }}
+                </button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            No policies defined. Create a policy rule to begin automated evaluation.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

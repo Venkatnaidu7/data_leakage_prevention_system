@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Management{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.75rem;">Incident Triage Repository</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Review, assign, and resolve potential data leakage alerts.
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('incidents.export', format='csv') }}" class="btn btn-secondary btn-sm">Export CSV</a>
+    <a href="{{ url_for('incidents.export', format='json') }}" class="btn btn-secondary btn-sm">Export JSON</a>
+  </div>
+</div>
+
+<!-- Search & Filter Controls -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+  <form method="GET" action="{{ url_for('incidents.index') }}" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+    <div style="flex: 2; min-width: 200px;">
+      <label for="q">Search (Title, Source, Policy):</label>
+      <input type="text" name="q" id="q" value="{{ search_query }}" placeholder="Filter keywords...">
+    </div>
+    <div style="flex: 1; min-width: 150px;">
+      <label for="status">Status:</label>
+      <select name="status" id="status">
+        <option value="">All Statuses</option>
+        {% for st in statuses %}
+        <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>{{ st }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="flex: 1; min-width: 150px;">
+      <label for="severity">Severity:</label>
+      <select name="severity" id="severity">
+        <option value="">All Severities</option>
+        <option value="CRITICAL" {% if severity_filter == 'CRITICAL' %}selected{% endif %}>Critical</option>
+        <option value="HIGH" {% if severity_filter == 'HIGH' %}selected{% endif %}>High</option>
+        <option value="MEDIUM" {% if severity_filter == 'MEDIUM' %}selected{% endif %}>Medium</option>
+        <option value="LOW" {% if severity_filter == 'LOW' %}selected{% endif %}>Low</option>
+      </select>
+    </div>
+    <div>
+      <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.25rem;">Filter</button>
+      <a href="{{ url_for('incidents.index') }}" class="btn btn-secondary" style="padding: 0.65rem 1rem;">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- Incidents Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Incident Title</th>
+          <th>Severity</th>
+          <th>Action</th>
+          <th>Status</th>
+          <th>Source</th>
+          <th>Assigned Analyst</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inc in incidents %}
+        <tr>
+          <td>#{{ inc.id }}</td>
+          <td><strong>{{ inc.title }}</strong></td>
+          <td><span class="badge badge-{{ inc.severity.lower() }}">{{ inc.severity }}</span></td>
+          <td><span class="badge badge-{{ inc.action_taken.lower() }}">{{ inc.action_taken }}</span></td>
+          <td>
+            <span style="font-weight: 600; font-size: 0.85rem; color: {% if inc.status == 'NEW' %}#60a5fa{% elif inc.status == 'RESOLVED' %}#4ade80{% elif inc.status == 'FALSE_POSITIVE' %}#94a3b8{% else %}#c084fc{% endif %};">
+              {{ inc.status }}
+            </span>
+          </td>
+          <td><span class="code-snippet">{{ inc.source_name }}</span></td>
+          <td>{{ inc.assigned_to.username if inc.assigned_to else "Unassigned" }}</td>
+          <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ inc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            <a href="{{ url_for('incidents.detail', incident_id=inc.id) }}" class="btn btn-secondary btn-sm">Triage</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+            No incidents found matching current filters.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  {% if pagination.pages > 1 %}
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+      Page {{ pagination.page }} of {{ pagination.pages }} (Total: {{ pagination.total }} incidents)
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if pagination.has_prev %}
+      <a href="{{ url_for('incidents.index', page=pagination.prev_num, status=status_filter, severity=severity_filter, q=search_query) }}" class="btn btn-secondary btn-sm">&larr; Previous</a>
+      {% endif %}
+      {% if pagination.has_next %}
+      <a href="{{ url_for('incidents.index', page=pagination.next_num, status=status_filter, severity=severity_filter, q=search_query) }}" class="btn btn-secondary btn-sm">Next &rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

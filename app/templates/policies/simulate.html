@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Policy Simulation Sandbox{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto;">
+  <div style="margin-bottom: 1.5rem;">
+    <h1 style="font-size: 1.75rem;">Policy Simulation Sandbox</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Test sensitive text against active DLP policies in dry-run mode.
+      No incidents will be created and no real-world enforcement will be triggered.
+    </p>
+  </div>
+
+  <div class="card" style="margin-bottom: 2rem;">
+    <form method="POST" action="{{ url_for('policies.simulate') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label for="sample_text">Test Payload Content:</label>
+        <textarea name="sample_text" id="sample_text" rows="6" placeholder="Paste test content with synthetic secrets, sample cards, or test emails..." required>{{ sample_text }}</textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Run Policy Simulation</button>
+    </form>
+  </div>
+
+  {% if result %}
+  <!-- Simulation Decision Summary -->
+  <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #a855f7;">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Simulation Outcome</h2>
+    <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
+      <span class="badge badge-{{ result.evaluation.action.lower() }}" style="font-size: 1rem; padding: 0.35rem 0.85rem;">
+        Proposed Action: {{ result.evaluation.action }}
+      </span>
+      <span class="badge badge-{{ result.evaluation.severity.lower() }}" style="font-size: 0.9rem; padding: 0.3rem 0.7rem;">
+        Proposed Severity: {{ result.evaluation.severity }}
+      </span>
+    </div>
+    <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;">
+      <div><strong>Winning Policy:</strong> {{ result.evaluation.matched_policy_name or "None (Default Log)" }}</div>
+      <div><strong>Rationale:</strong> {{ result.evaluation.rationale }}</div>
+    </div>
+  </div>
+
+  <!-- Triggered Policies Comparison -->
+  {% if result.evaluation.triggered_policies %}
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">All Matching Policies Evaluated</h2>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Policy</th>
+            <th>Action</th>
+            <th>Severity</th>
+            <th>Matched Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pol in result.evaluation.triggered_policies %}
+          <tr>
+            <td>#{{ pol.priority }}</td>
+            <td><strong>{{ pol.name }}</strong></td>
+            <td><span class="badge badge-{{ pol.action.lower() }}">{{ pol.action }}</span></td>
+            <td><span class="badge badge-{{ pol.severity.lower() }}">{{ pol.severity }}</span></td>
+            <td>{{ pol.matched_count }} match(es)</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Redacted Findings -->
+  <div class="card">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Detected Findings ({{ result.findings | length }})</h2>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Line</th>
+            <th>Detector</th>
+            <th>Classification</th>
+            <th>Redacted Finding</th>
+            <th>Snippet</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for finding in result.findings %}
+          <tr>
+            <td>L{{ finding.line_number }}</td>
+            <td><strong>{{ finding.detector_name }}</strong></td>
+            <td><span class="code-snippet">{{ finding.classification }}</span></td>
+            <td><code style="color: #f87171;">{{ finding.redacted_value }}</code></td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">
+              {{ finding.context_snippet }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+              No sensitive findings matched by any detector.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

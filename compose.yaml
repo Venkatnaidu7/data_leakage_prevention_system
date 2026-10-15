@@ -1,0 +1,47 @@
+services:
+  dlp-db:
+    image: postgres:16-alpine
+    container_name: dlp-postgres-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dlp_system}
+      POSTGRES_USER: ${POSTGRES_USER:-dlp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeMeSecurePass2026!}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dlp_user} -d ${POSTGRES_DB:-dlp_system}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  dlp-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dlp-web-app
+    depends_on:
+      dlp-db:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      SECRET_KEY: ${SECRET_KEY:-replace-with-a-32-char-random-key-in-prod!}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dlp_user}:${POSTGRES_PASSWORD:-ChangeMeSecurePass2026!}@dlp-db:5432/${POSTGRES_DB:-dlp_system}
+      SESSION_COOKIE_SECURE: "true"
+      MAX_CONTENT_LENGTH_BYTES: "10485760"
+      LOG_LEVEL: INFO
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

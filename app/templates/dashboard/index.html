@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+  <div>
+    <h1 style="font-size: 1.75rem;">Security Operations Center</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Real-time sensitive data detection, policy alerts, and incident trends.
+    </p>
+  </div>
+  <div>
+    <a href="{{ url_for('scanning.upload') }}" class="btn btn-primary">+ New Scan</a>
+  </div>
+</div>
+
+<!-- Primary Metrics -->
+<div class="metrics-grid">
+  <div class="card">
+    <div class="card-title">Total Incidents</div>
+    <div class="card-value">{{ total_incidents }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">New / Open Incidents</div>
+    <div class="card-value" style="color: #60a5fa;">{{ status_counts['NEW'] }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Critical / High Severity</div>
+    <div class="card-value" style="color: #f87171;">
+      {{ severity_counts['CRITICAL'] + severity_counts['HIGH'] }}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Active Policies</div>
+    <div class="card-value" style="color: #34d399;">{{ active_policies_count }}</div>
+  </div>
+</div>
+
+<!-- Incident Breakdown -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+  <div class="card">
+    <h2 style="font-size: 1.1rem; margin-bottom: 1rem; color: #fff;">Severity Distribution</h2>
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="badge badge-critical">Critical</span>
+        <span style="font-weight: 700;">{{ severity_counts['CRITICAL'] }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="badge badge-high">High</span>
+        <span style="font-weight: 700;">{{ severity_counts['HIGH'] }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="badge badge-medium">Medium</span>
+        <span style="font-weight: 700;">{{ severity_counts['MEDIUM'] }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="badge badge-low">Low</span>
+        <span style="font-weight: 700;">{{ severity_counts['LOW'] }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size: 1.1rem; margin-bottom: 1rem; color: #fff;">Status Triage</h2>
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #60a5fa; font-weight: 600;">NEW</span>
+        <span style="font-weight: 700;">{{ status_counts['NEW'] }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #c084fc; font-weight: 600;">INVESTIGATING</span>
+        <span style="font-weight: 700;">{{ status_counts['INVESTIGATING'] }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #4ade80; font-weight: 600;">RESOLVED</span>
+        <span style="font-weight: 700;">{{ status_counts['RESOLVED'] }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #94a3b8; font-weight: 600;">FALSE POSITIVE</span>
+        <span style="font-weight: 700;">{{ status_counts['FALSE_POSITIVE'] }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Incidents -->
+<div class="card" style="margin-bottom: 2rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 style="font-size: 1.1rem; color: #fff;">Recent DLP Incidents</h2>
+    <a href="{{ url_for('incidents.index') }}" style="color: var(--accent-blue); font-size: 0.85rem; text-decoration: none;">View All &rarr;</a>
+  </div>
+  
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Incident Title</th>
+          <th>Severity</th>
+          <th>Action Taken</th>
+          <th>Status</th>
+          <th>Source</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inc in recent_incidents %}
+        <tr>
+          <td>#{{ inc.id }}</td>
+          <td><strong>{{ inc.title }}</strong></td>
+          <td><span class="badge badge-{{ inc.severity.lower() }}">{{ inc.severity }}</span></td>
+          <td><span class="badge badge-{{ inc.action_taken.lower() }}">{{ inc.action_taken }}</span></td>
+          <td>{{ inc.status }}</td>
+          <td><span class="code-snippet">{{ inc.source_name }}</span></td>
+          <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ inc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            <a href="{{ url_for('incidents.detail', incident_id=inc.id) }}" class="btn btn-secondary btn-sm">Triage</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            No incidents recorded. Run a scan to test DLP detection rules.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

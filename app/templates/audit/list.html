@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Security Audit Trail{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.75rem;">Security Audit Trail</h1>
+  <p style="color: var(--text-secondary); font-size: 0.9rem;">
+    Append-only security log recording authentication events, policy alterations, scans, and incident modifications.
+  </p>
+</div>
+
+<!-- Filter Box -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+  <form method="GET" action="{{ url_for('audit.index') }}" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+    <div style="flex: 1; min-width: 180px;">
+      <label for="action">Action Filter:</label>
+      <input type="text" name="action" id="action" value="{{ action_filter }}" placeholder="e.g. AUTH_LOGIN, POLICY_...">
+    </div>
+    <div style="flex: 1; min-width: 180px;">
+      <label for="username">Username Filter:</label>
+      <input type="text" name="username" id="username" value="{{ username_filter }}" placeholder="e.g. admin">
+    </div>
+    <div>
+      <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.25rem;">Filter Logs</button>
+      <a href="{{ url_for('audit.index') }}" class="btn btn-secondary" style="padding: 0.65rem 1rem;">Reset</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Timestamp (UTC)</th>
+          <th>Action</th>
+          <th>User</th>
+          <th>Target</th>
+          <th>IP Address</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="color: var(--text-secondary); font-size: 0.85rem; white-space: nowrap;">
+            {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+          </td>
+          <td>
+            <span class="code-snippet" style="font-weight: 600; color: #a78bfa;">{{ log.action }}</span>
+          </td>
+          <td>{{ log.username or 'System / Anonymous' }}</td>
+          <td>
+            {% if log.target_type %}
+            <span style="font-size: 0.8rem; color: var(--text-muted);">{{ log.target_type }}:{{ log.target_id or '' }}</span>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+          <td style="font-family: var(--font-mono); font-size: 0.8rem;">{{ log.ip_address or '-' }}</td>
+          <td style="font-family: var(--font-mono); font-size: 0.8rem; max-width: 320px; overflow-wrap: break-word;">
+            {{ log.details or '-' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+            No audit records matching query.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+      Page {{ pagination.page }} of {{ pagination.pages }} (Total: {{ pagination.total }} audit events)
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if pagination.has_prev %}
+      <a href="{{ url_for('audit.index', page=pagination.prev_num, action=action_filter, username=username_filter) }}" class="btn btn-secondary btn-sm">&larr; Previous</a>
+      {% endif %}
+      {% if pagination.has_next %}
+      <a href="{{ url_for('audit.index', page=pagination.next_num, action=action_filter, username=username_filter) }}" class="btn btn-secondary btn-sm">Next &rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

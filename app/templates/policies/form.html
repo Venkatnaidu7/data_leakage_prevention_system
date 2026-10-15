@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Edit Policy" if policy else "New Policy" }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 700px; margin: 0 auto;">
+  <div style="margin-bottom: 1.5rem;">
+    <h1 style="font-size: 1.75rem;">{{ "Edit Policy" if policy else "Create New Policy Rule" }}</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Configure deterministic priority, detector triggers, threshold, and enforcement actions.
+    </p>
+  </div>
+
+  <div class="card">
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label for="name">Policy Name:</label>
+        <input type="text" name="name" id="name" required placeholder="e.g., PCI-DSS Cardholder Data Protection" value="{{ policy.name if policy else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description &amp; Regulatory Purpose:</label>
+        <textarea name="description" id="description" rows="3" placeholder="Context on regulatory requirements or internal security objective...">{{ policy.description if policy else '' }}</textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="priority">Evaluation Priority (1 = Highest):</label>
+          <input type="number" name="priority" id="priority" min="1" max="1000" value="{{ policy.priority if policy else 10 }}">
+        </div>
+
+        <div class="form-group">
+          <label for="match_threshold">Match Threshold (Findings required):</label>
+          <input type="number" name="match_threshold" id="match_threshold" min="1" max="1000" value="{{ policy.match_threshold if policy else 1 }}">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="action">Enforcement Action:</label>
+          <select name="action" id="action">
+            {% for act in actions %}
+            <option value="{{ act }}" {% if policy and policy.action == act %}selected{% endif %}>{{ act }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="severity">Violation Severity:</label>
+          <select name="severity" id="severity">
+            {% for sev in severities %}
+            <option value="{{ sev }}" {% if policy and policy.severity == sev %}selected{% endif %}>{{ sev }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Monitored Detectors (leave empty for all detectors):</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; background: var(--bg-primary); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+          {% for det in detectors %}
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; margin-bottom: 0; cursor: pointer;">
+            <input type="checkbox" name="target_detectors" value="{{ det.name }}"
+              {% if policy and (det.name in policy.target_detectors or '*' in policy.target_detectors) %}checked{% endif %}>
+            <span><strong>{{ det.name }}</strong> ({{ det.classification }})</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-primary); border-radius: var(--radius-sm);">
+        <input type="checkbox" name="is_simulation" id="is_simulation" style="width: auto;"
+          {% if policy and policy.is_simulation %}checked{% endif %}>
+        <div>
+          <label for="is_simulation" style="margin-bottom: 0; cursor: pointer; color: #fff;">
+            Policy Simulation / Dry-Run Flag
+          </label>
+          <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">
+            If checked, this policy will only simulate its decision and will not generate actionable incidents.
+          </span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary">{{ "Update Policy" if policy else "Create Policy" }}</button>
+        <a href="{{ url_for('policies.index') }}" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

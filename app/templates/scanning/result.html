@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Results{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <h1 style="font-size: 1.75rem;">Scan Inspection Report</h1>
+      <p style="color: var(--text-secondary); font-size: 0.9rem;">
+        Source: <span class="code-snippet">{{ result.source_name }}</span> &bull; Findings: {{ result.findings_count }}
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="{{ url_for('scanning.upload') }}" class="btn btn-secondary btn-sm">Scan Another</a>
+      {% if result.incident_id %}
+      <a href="{{ url_for('incidents.detail', incident_id=result.incident_id) }}" class="btn btn-primary btn-sm">View Incident #{{ result.incident_id }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Policy Decision Summary Banner -->
+  <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--accent-blue);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Engine Decision</div>
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.25rem;">
+          <span class="badge badge-{{ result.policy_evaluation.action.lower() }}" style="font-size: 1rem; padding: 0.35rem 0.85rem;">
+            {{ result.policy_evaluation.action }}
+          </span>
+          <span class="badge badge-{{ result.policy_evaluation.severity.lower() }}" style="font-size: 0.9rem; padding: 0.3rem 0.7rem;">
+            {{ result.policy_evaluation.severity }}
+          </span>
+          {% if result.policy_evaluation.is_simulation %}
+          <span class="badge" style="background: rgba(147, 51, 234, 0.2); border: 1px solid #9333ea; color: #d8b4fe;">
+            SIMULATION / DRY-RUN
+          </span>
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">Matched Policy</div>
+        <div style="font-weight: 600; color: #fff;">
+          {{ result.policy_evaluation.matched_policy_name or "Default Baseline / None" }}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.9rem; color: var(--text-secondary);">
+      <strong>Evaluation Rationale:</strong> {{ result.policy_evaluation.rationale }}
+    </div>
+  </div>
+
+  <!-- Redacted Findings Table -->
+  <div class="card">
+    <h2 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Sensitive Findings (Strictly Redacted)</h2>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+      Raw secret tokens and unredacted PII are strictly masked before rendering or persistence.
+    </p>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Line</th>
+            <th>Detector</th>
+            <th>Classification</th>
+            <th>Confidence</th>
+            <th>Redacted Finding</th>
+            <th>Redacted Context Window</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for finding in result.findings %}
+          <tr>
+            <td>L{{ finding.line_number }}</td>
+            <td><strong>{{ finding.detector_name }}</strong></td>
+            <td><span class="code-snippet">{{ finding.classification }}</span></td>
+            <td>{{ (finding.confidence * 100) | round(1) }}%</td>
+            <td><code style="color: #f87171; font-weight: 600;">{{ finding.redacted_value }}</code></td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">
+              {{ finding.context_snippet }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+              No sensitive patterns detected in this payload.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

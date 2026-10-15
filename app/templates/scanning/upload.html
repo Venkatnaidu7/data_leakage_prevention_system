@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Authorized Content Scanner{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+  <div style="margin-bottom: 1.5rem;">
+    <h1 style="font-size: 1.75rem;">Authorized Content &amp; File Scanner</h1>
+    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+      Upload authorized sample files or inspect text payloads against active DLP policies.
+      Files are never executed; sensitive findings are automatically masked.
+    </p>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+      <button type="button" class="btn btn-secondary btn-sm tab-btn active" data-tab="file-scan">File Upload</button>
+      <button type="button" class="btn btn-secondary btn-sm tab-btn" data-tab="text-scan">Direct Text Input</button>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" action="{{ url_for('scanning.upload') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="scan_mode" id="scan_mode_input" value="file">
+
+      <!-- File Upload Tab -->
+      <div id="file-scan" class="tab-content">
+        <div class="form-group">
+          <label for="file">Select File (Allowlist: .txt, .csv, .json, .log, .md, .xml, .yaml &bull; Max 10MB):</label>
+          <input type="file" name="file" id="file" style="padding: 0.5rem; background: var(--bg-primary); border: 1px dashed var(--border-color); width: 100%; border-radius: var(--radius-sm);">
+        </div>
+      </div>
+
+      <!-- Direct Text Tab -->
+      <div id="text-scan" class="tab-content" style="display: none;">
+        <div class="form-group">
+          <label for="source_name">Source Identifier / Name:</label>
+          <input type="text" name="source_name" id="source_name" placeholder="e.g., support_ticket_4091.txt" value="direct_input.txt">
+        </div>
+        <div class="form-group">
+          <label for="content">Payload Content to Inspect:</label>
+          <textarea name="content" id="content" rows="8" placeholder="Paste sample text containing emails, credit cards, credentials, etc..."></textarea>
+        </div>
+      </div>
+
+      <!-- Simulation Mode Toggle -->
+      <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; padding: 0.75rem; background: var(--bg-primary); border-radius: var(--radius-sm);">
+        <input type="checkbox" name="is_simulation" id="is_simulation" style="width: auto;">
+        <div>
+          <label for="is_simulation" style="margin-bottom: 0; cursor: pointer; color: #fff;">
+            Run in Simulation / Dry-Run Mode
+          </label>
+          <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">
+            Evaluates policies without mutating the incident repository or triggering live enforcement alerts.
+          </span>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">Run DLP Inspection</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
