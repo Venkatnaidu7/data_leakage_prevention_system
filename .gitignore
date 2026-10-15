@@ -69,3 +69,11 @@ tmp/
 *.swo
 *~
 .DS_Store
+
+# Endpoint agent runtime files
+agent_config.json
+agent_queue.json
+agent_queue.tmp
+mock_usb/
+monitored_data/
+

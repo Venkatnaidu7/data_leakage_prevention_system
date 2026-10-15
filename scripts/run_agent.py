@@ -168,28 +168,31 @@ def cmd_test_event(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="DLP Endpoint Agent CLI")
-    parser.add_argument("--config", help="Path to custom agent configuration JSON", default=None)
-    parser.add_argument("--server-url", help="DLP server base URL", default=None)
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--config", help="Path to custom agent configuration JSON", default=None)
+    common_parser.add_argument("--server-url", help="DLP server base URL", default=None)
 
+    parser = argparse.ArgumentParser(description="DLP Endpoint Agent CLI", parents=[common_parser])
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Subcommand: enroll
-    subparsers.add_parser("enroll", help="Enroll device with DLP server")
+    subparsers.add_parser("enroll", help="Enroll device with DLP server", parents=[common_parser])
 
     # Subcommand: status
-    subparsers.add_parser("status", help="Display agent status")
+    subparsers.add_parser("status", help="Display agent status", parents=[common_parser])
 
     # Subcommand: run
-    run_parser = subparsers.add_parser("run", help="Run the agent monitor daemon")
+    run_parser = subparsers.add_parser("run", help="Run the agent monitor daemon", parents=[common_parser])
     run_parser.add_argument("--poll-interval", type=float, default=2.0, help="Observer poll interval in seconds")
     run_parser.add_argument(
         "--enable-clipboard", action="store_true", help="Explicitly enable clipboard monitoring (opt-in)"
     )
 
     # Subcommand: test-event
-    test_parser = subparsers.add_parser("test-event", help="Submit a synthetic test event")
-    test_parser.add_argument("--type", choices=["file", "usb", "clipboard"], default="file", help="Event channel type")
+    test_parser = subparsers.add_parser("test-event", help="Submit a synthetic test event", parents=[common_parser])
+    test_parser.add_argument(
+        "--type", choices=["file", "usb", "clipboard"], default="file", help="Event channel type"
+    )
     test_parser.add_argument("--sensitive", action="store_true", help="Include sensitive credit card/secret content")
 
     args = parser.parse_args()
