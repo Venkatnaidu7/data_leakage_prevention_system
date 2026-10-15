@@ -263,6 +263,9 @@ docker compose logs -f dlp-web
 curl -f http://localhost:5000/api/v1/health
 ```
 
+> [!TIP]
+> **Using Podman?** Full cross-platform setup instructions for Linux, Windows, and macOS with Podman & Podman Compose are available in [README_SETUP.md](file:///home/robin/Documents/DTS/README_SETUP.md).
+
 ---
 
 ## REST API Reference (v1)

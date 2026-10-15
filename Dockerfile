@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy application source code
 COPY app/ app/
+COPY agent/ agent/
 COPY migrations/ migrations/
 COPY scripts/ scripts/
 COPY docs/ docs/
